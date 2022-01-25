@@ -1,7 +1,10 @@
-## Getting R pacakges ------------------------------------
+## Getting R packages ------------------------------------
 
 library(ggplot2)
 library(dplyr)
+library(devtools)
+library(remotes)
+library(SDMTools)
 library(tidyverse)
 library(StatsBombR)
 library(FC.rSTATS)
@@ -28,4 +31,17 @@ euros_matches <- euros_matches %>%
 
 england_euros_matches <- euros_matches %>% filter(england_match == 1)
 
-england_euros_matches <- StatsBombFreeEvents(MatchesDF = england_euros_matches, Parallel = T)
+## England Vs. Croatia ------------------------------------
+
+england_croatia_match <- england_euros_matches %>% filter(match_week == 1)
+
+england_croatia_match <- StatsBombFreeEvents(england_croatia_match)
+
+england_croatia_match <- allclean(england_croatia_match)
+
+eng_player_df <- england_croatia_match %>% filter(team.name == "England") %>% 
+  filter(type.name == "Pass") %>% group_by(player.name) %>% 
+  summarise(x_location = mean(location[[1]][1],na.rm = TRUE),
+            y_location = mean(location[[1]][2],na.rm = TRUE))
+
+  
