@@ -16,6 +16,7 @@ library(RColorBrewer)
 library(png)
 library(ggrepel)
 library(extrafont)
+library(janitor)
 font_import()
 loadfonts(device = "win")
 # fonts() to check fonts available
@@ -41,7 +42,30 @@ england_croatia_match <- allclean(england_croatia_match)
 
 eng_player_df <- england_croatia_match %>% filter(team.name == "England") %>% 
   filter(type.name == "Pass") %>% group_by(player.name) %>% 
-  summarise(x_location = mean(location[[1]][1],na.rm = TRUE),
-            y_location = mean(location[[1]][2],na.rm = TRUE))
+  separate(location, c("x_location","y_location"), sep = ",")
 
-  
+eng_player_df$x_location <- as.numeric(gsub("[a-zA-Z()]", "", eng_player_df$x_location))
+ 
+eng_player_df$y_location <- as.numeric(gsub("[a-zA-Z()]", "", eng_player_df$y_location))
+
+eng_player_df <- eng_player_df %>% group_by(player.name) %>% 
+            summarise(x_location = mean(x_location,na.rm = TRUE),
+                      y_location = mean(y_location,na.rm = TRUE))
+
+pass_connections <- england_croatia_match %>% filter(team.name == "England") %>% 
+  filter(type.name == "Pass") %>% select(player.name,pass.recipient.name) %>% 
+  filter(!is.na(pass.recipient.name)) %>% 
+  mutate(pass_made = 1)
+
+pass_connections <- pass_connections %>% group_by(player.name, pass.recipient.name) %>% 
+  summarise(passes.made = sum(pass_made, na.rm = TRUE))
+
+pass_connections <- pass_connections %>% 
+              group_by(player.name) %>% 
+              pivot_wider(names_from = pass.recipient.name, 
+              values_from = passes.made, values_fill = 0)
+
+pass_connections <- pass_connections %>% janitor::clean_names()
+
+pass_connections <- pass_connections %>% mutate(
+                    Total = rowSums(across(where(is.numeric))))
