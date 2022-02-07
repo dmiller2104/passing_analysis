@@ -150,19 +150,62 @@ eng_nodes_match1 <- match1_eng_dfs[[2]]
 
 match1_eng_dfs[[3]]
 
+passes <- eng_player_df %>% 
+  filter(type.name == "Pass") %>% 
+  group_by(pass.outcome.name) %>% 
+  tally() %>% 
+  filter(!pass.outcome.name %in% c("Injury Clearance", "Unknown")) %>% 
+  mutate(pass.outcome.name = fct_explicit_na(pass.outcome.name, "Complete"))
+
+pass_n <- sum(passes$n)
+pass_pc <- passes[passes$pass.outcome.name == "Complete",]$n / pass_n * 100
+
 
 #create_Pitch(middlethird = TRUE) + 
-ggplot() + 
-  xlim(0, 120) +
-  ylim(0, 80) + 
-  geom_segment(data = eng_edges_match1, aes(x, y, xend = xend, yend = yend, size = n ), col = "light blue", alpha = 0.9) +
-  geom_point(data = eng_nodes_match1, aes(x, y, size = events, color = "red", fill = events), pch = 21) + 
+soccerPitch(lengthPitch = 120, widthPitch = 80, theme = 'grass') + 
+  geom_segment(data = eng_edges_match1, aes(x, y, xend = xend, yend = yend, size = n/2 ),
+               col = "#3F95F7", alpha = 0.9, show.legend = F) +
+  geom_point(data = eng_nodes_match1, aes(x, y, size = events, color = "red", fill = events), pch = 21, show.legend = F) + 
   scale_fill_distiller(palette = "Reds", direction = 1) +
   scale_size_identity() + 
   guides(size = "none") +
+  theme_classic() + 
+  ggtitle("England vs Croatia, 13-06-2021 Euro 2020") + 
   theme(axis.title.x=element_blank(),
         axis.text.x=element_blank(),
         axis.ticks.x=element_blank(),
         axis.title.y=element_blank(),
         axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) 
+        axis.ticks.y=element_blank(),
+        axis.line.x = element_blank(),
+        axis.line.y = element_blank(),
+        plot.title = element_text(hjust = 0.15, vjust = -25)) +
+  coord_cartesian(clip = "on") + 
+  annotate("text", 104, 1, label = paste0("Passes: ", pass_n, "\nCompleted: ", sprintf("%.1f", pass_pc), "%"), 
+           hjust = 1, vjust = 0, size = 4 * 7/8, col = "black") + 
+  geom_label_repel(data = eng_nodes_match1, aes(x, y, label = name), size = 2.5) 
+
+
+create_Pitch(middlethird = TRUE) + 
+  geom_segment(data = eng_edges_match1, aes(x, y, xend = xend, yend = yend-3, size = n/4),
+               col = "#3F95F7", alpha = 0.9, show.legend = F,
+               arrow = arrow(length = unit(0.03, "npc"))) +
+  geom_point(data = eng_nodes_match1, aes(x, y, size = events, color = "red", fill = events), pch = 21, show.legend = F) + 
+  scale_fill_distiller(palette = "Reds", direction = 1) +
+  scale_size_identity() + 
+  guides(size = "none") +
+  theme_classic() + 
+  ggtitle("England vs Croatia, 13-06-2021 Euro 2020") + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.line.x = element_blank(),
+        axis.line.y = element_blank(),
+        plot.title = element_text(hjust = 0.15, vjust = -25)) +
+  coord_cartesian(clip = "on") + 
+  annotate("text", 104, 1, label = paste0("Passes: ", pass_n, "\nCompleted: ", sprintf("%.1f", pass_pc), "%"), 
+           hjust = 1, vjust = 0, size = 4 * 7/8, col = "black") + 
+  geom_label_repel(data = eng_nodes_match1, aes(x, y, label = name), size = 2.5) 
