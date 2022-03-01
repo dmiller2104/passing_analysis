@@ -25,7 +25,10 @@ font_import()
 loadfonts(device = "win")
 # fonts() to check fonts available
 
-## Getting England data ------------------------------------
+## reading in functions --------------------------------------------------------
+source('functions.r')
+
+## Getting England data --------------------------------------------------------
 
 euros_data <- FreeCompetitions() %>% filter(competition_name == "UEFA Euro")
 
@@ -36,101 +39,7 @@ euros_matches <- euros_matches %>%
 
 england_euros_matches <- euros_matches %>% filter(england_match == 1)
 
-## Developing network dataset creation function -------------------
-#@ Adapted from the soccermatics passmap function
-#@ this largely lifts the script they've produced with a few minor tweaks
-#@ aim is for the function to be used for a varierty of differents visauls, beyond passing.
 
-adapted_soccerPassMap <- function(df, minPass = 3, player.x.location = "location.x", player.y.location = "location.y",
-                                  label = TRUE, maxNodeSize = 30, maxEdgeSize =30
-                                  )
-  {type.name<-pass.outcome.name<-period<-timestamp<-player.name<-pass.recipient.name<-from<-to<-xend<-yend<-events<-NULL
-  
-  if(length(unique(df$team.name)) > 1) stop("Data contains more than one team")
-   
-  df <- as.data.frame(df)
-  
-  # set variable names
-  x <- player.x.location
-  y <- player.y.location
-  id <- "player.id"
-  player_name <- "player.name"
-  team_name <- "team.name"
-  
-  df$x_loc <- df[,x]
-  df$y_loc <- df[,y]
-  df$id <- df[,id]
-  df$name <- df[,player_name]
-  df$team <- df[,team_name]
-  
-  # full game passing stats for labels
-  passes <- df %>% 
-    filter(type.name == "Pass") %>% 
-    group_by(pass.outcome.name) %>% 
-    tally() %>% 
-    filter(!pass.outcome.name %in% c("Injury Clearance", "Unknown")) %>% 
-    mutate(pass.outcome.name = fct_explicit_na(pass.outcome.name, "Complete"))
-  pass_n <- sum(passes$n)
-  pass_pc <- passes[passes$pass.outcome.name == "Complete",]$n / pass_n * 100
-  
-  
-  # filter events before time of first substitution, if at least one substitution
-  min_events <- df %>% 
-    group_by(id) %>% 
-    dplyr::summarise(period = min(period), timestamp = min(timestamp)) %>% 
-    stats::na.omit() %>% 
-    arrange(period, timestamp)
-  
-  if(nrow(min_events) > 11) {
-    max_event <- min_events[12,]
-    idx <- which(df$period == max_event$period & df$timestamp == max_event$timestamp) - 1
-    df <- df[1:idx,]
-  }
-  
-  
-  # get nodes and edges for plotting
-  # node position and size based on touches
-  nodes <- df %>% 
-    filter(type.name %in% c("Pass", "Ball Receipt*", "Ball Recovery", "Shot", "Dispossessed", "Interception", "Clearance", "Dribble", "Shot", "Goal Keeper", "Miscontrol", "Error")) %>% 
-    group_by(id, name) %>% 
-    dplyr::summarise(x = mean(x_loc, na.rm=T), y = mean(y_loc, na.rm=T), events = n()) %>% 
-    stats::na.omit() %>% 
-    as.data.frame()
-  
-  # edges based only on completed passes
-  edgelist <- df %>% 
-    mutate(pass.outcome.name = fct_explicit_na(pass.outcome.name, "Complete")) %>%
-    filter(type.name == "Pass" & pass.outcome.name == "Complete") %>% 
-    select(from = player.name, to = pass.recipient.name) %>% 
-    group_by(from, to) %>% 
-    dplyr::summarise(n = n()) %>% 
-    stats::na.omit()
-  
-  edges <- left_join(edgelist, 
-                     nodes %>% select(id, name, x, y),
-                     by = c("from" = "name"))
-  
-  edges <- left_join(edges, 
-                     nodes %>% select(id, name, xend = x, yend = y),
-                     by = c("to" = "name"))
-  
-  edges <- edges %>% 
-    group_by(player1 = pmin(from, to), player2 = pmax(from, to)) %>% 
-    dplyr::summarise(n = sum(n), x = x[1], y = y[1], xend = xend[1], yend = yend[1])
-  
-  
-  # filter minimum number of passes and rescale line width
-  nodes <- nodes %>% 
-    mutate(events = scales::rescale(events, c(2, maxNodeSize), c(1, 200)))
-  
-  # rescale node size
-  edges <- edges %>% 
-    filter(n >= minPass) %>%
-    mutate(n = scales::rescale(n, c(1, maxEdgeSize), c(minPass, 75)))
-  
-  # return the three dfs
-  return(list(edges, nodes, df))
-}
 
 
 ## England Vs. Croatia ------------------------------------
@@ -246,50 +155,45 @@ passing_analysis_game1 <- england_croatia_match %>% filter(team.name == 'England
          progressive.pass.category
          )
 
-## Progressive passes by player and category -----------------------------------
+## progressive passes
 
-passing_analysis_game1 %>% filter(progressive.pass.category != "NA") %>%
-       mutate(pass_n = 1) %>% 
+passing_analysis_game1 <- progressive_pass_assess(passing_analysis_game1)
+
+## England passing map ---------------------------------------------------------
+
+eng_passes_vs_croatia <- create_Pitch(middlethird = TRUE) +
+  geom_point(data = passing_analysis_game1, aes(x = location.x, y = location.y.inverse), 
+             color = "red", alpha = 0.5, size = 6) +
+  labs(subtitle = "A clear focus on the left side of the pitch, but also noticeably fewer passes around the central part of the 18 yard area.",
+       title = "All England passes vs. Croatia, by location of where pass made") + 
+  theme(plot.title.position = "plot",
+        plot.title = element_textbox_simple(padding = margin(7.5, 77.5, -20, 50.5)),
+        plot.subtitle = element_text(hjust = 0.65, vjust = -10))
+
+
+## Progressive passes by player ------------------------------------------------
+
+passing_analysis_game1 %>% filter(progressive.pass != 0) %>%
+  mutate(pass_n = 1) %>% 
   pivot_wider(names_from = progressive.pass.category, values_from = pass_n) %>% 
   group_by(player.name) %>% 
-  summarise(category.1 = sum(category.1, na.rm = TRUE),
-            category.2 = sum(category.2, na.rm = TRUE),
-            category.3 = sum(category.3, na.rm = TRUE),
-            Total.progressive.passes = sum(category.1, na.rm = TRUE) + 
-              sum(category.2, na.rm = TRUE) + 
-              sum(category.3, na.rm = TRUE)) %>% 
-  arrange(desc(Total.progressive.passes), desc(category.3), desc(category.2), desc(category.1))
+  summarise(progressive.passes = sum(progressive.pass, na.rm = TRUE)) %>% 
+  arrange(desc(progressive.passes))
 
 ## progressive passing map, colour = category of pass --------------------------
 
 eng_croatia_prog_pass_map <- create_Pitch(middlethird = TRUE) + 
-  geom_segment(data = passing_analysis_game1 %>% filter(progressive.pass.category == "category.1"), 
+  geom_segment(data = passing_analysis_game1 %>% filter(progressive.pass == "1") %>% filter(player.name != "Kieran Trippier"), 
                size = 1, aes(x = location.x, y = location.y.inverse, xend = pass.end_location.x, yend = pass.end_location.y.inverse ),
                col = "#3F95F7", alpha = 1, show.legend = F, arrow = arrow(length = unit(0.5, "cm"))) +
-  geom_segment(data = passing_analysis_game1 %>% filter(progressive.pass.category == "category.2"), 
+  geom_segment(data = passing_analysis_game1 %>% filter(progressive.pass == "1") %>% filter(player.name == "Kieran Trippier"), 
                size = 1, aes(x = location.x, y = location.y.inverse, xend = pass.end_location.x, yend = pass.end_location.y.inverse ),
-               col = "Dark Green", alpha = 1, show.legend = F, arrow = arrow(length = unit(0.5, "cm"))) +
-  geom_segment(data = passing_analysis_game1 %>% filter(progressive.pass.category == "category.3"), 
-               size = 1, aes(x = location.x, y = location.y.inverse, xend = pass.end_location.x, yend = pass.end_location.y.inverse ),
-               col = "Red", alpha = 1, show.legend = F, arrow = arrow(length = unit(0.5, "cm"))) +
-  labs(subtitle = "Trippier, at left back, played the most progressive passes in all areas of the pitch (15), with seven in the opposition half",
-       title = "The selection of two right footed players on the left side reflects England's passing decisions to go more\n centrally with its progressive passes.") + 
+               col = "Red", alpha = 1, show.legend = F, arrow = arrow(length = unit(0.5, "cm"))) + 
+  labs(title = "England's progressive passes (52) primarily came from left flank, either advancing the ball up the pitch, or coming inside.",
+       subtitle = "Trippier (red) was England's most progressive passer (12)") +
   theme(plot.title.position = "plot",
-        plot.title = element_textbox_simple(padding = margin(7.5, 77.5, -20, 50.5)),
-        plot.subtitle = element_text(hjust = 0.60, vjust = -10)) +
-  annotate("text", 104, 1,
-           label = paste0("Category one: ",
-           passing_analysis_game1 %>% filter(progressive.pass.category == 'category.1') %>% nrow()), 
-           hjust = 5.23, vjust = -4.5, size = 5 * 7/8, col = "#3F95F7") +
-  annotate("text", 104, 1,
-           label = paste0("Category two: ",
-           passing_analysis_game1 %>% filter(progressive.pass.category == 'category.2') %>% nrow()), 
-           hjust = 4.97, vjust = -3, size = 5 * 7/8, col = "Dark Green") +
-  annotate("text", 104, 1,
-           label = paste0("Category three: ",
-           passing_analysis_game1 %>% filter(progressive.pass.category == 'category.3') %>% nrow()), 
-           hjust = 4.5, vjust = -1.5, size = 5 * 7/8, col = "Red")
-  
-
+        plot.title = element_textbox_simple(padding = margin(7.5, 77.5, -30, 50.5)),
+        plot.subtitle = element_text(hjust = 0.14, vjust = -15))
+# make improvements to the above  
 
 
