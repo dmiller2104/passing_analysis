@@ -204,4 +204,36 @@ eng_croatia_prog_pass_map <- passing_analysis_game1 %>%
   labs(title = "England's progressive passes (52) primarily came from left flank, either advancing the ball \nup the pitch, or coming inside.",
        subtitle = "Trippier (red) was England's most progressive passer (12) advancing the ball on average 22m up the pitch") 
   
-  
+## England defensive actions
+
+england_croatia_def_actions <- england_croatia_match %>% 
+  filter(team.name == "England") %>%
+  filter(type.name %in% c("Ball Recovery","Interception", "Pressure", "Duel")) %>% 
+  filter(duel.type.name %in% c("Aerial Lost",NA)) %>% 
+  select(player.name, type.name) %>% mutate(val = 1, row = row_number()) %>%
+  pivot_wider(names_from = type.name, values_from = "val", values_fill = 0) %>% 
+  select(-row) %>% 
+  group_by(player.name) %>% 
+  summarise(pressure = sum(Pressure, na.rm = TRUE),
+            ball.recovery = sum(`Ball Recovery`, na.rm = TRUE),
+            interception = sum(Interception, na.rm = TRUE),
+            aerial.battle.lost = sum(Duel, na.rm = TRUE)) %>%
+  arrange(desc(pressure))
+
+england_duels <- england_croatia_match %>% 
+  filter(team.name == "England") %>%
+  filter(type.name == "Duel") %>% 
+  filter(duel.type.name == "Tackle") %>% 
+  select(player.name, duel.outcome.name) %>% mutate(val = 1, row = row_number()) %>%
+  pivot_wider(names_from = duel.outcome.name, values_from = "val", values_fill = 0) %>% 
+  select(-row) %>% 
+  group_by(player.name) %>% 
+  summarise(tackles.attempted = sum(Won, na.rm = TRUE) + 
+              sum(`Success In Play`, na.rm = TRUE) + 
+              sum(`Lost Out`, na.rm = TRUE) + 
+              sum(`Lost In Play`, na.rm = TRUE),
+            tackles.won = sum(Won, na.rm = TRUE),
+            success.in.play = sum(`Success In Play`, na.rm = TRUE),
+            lost.out = sum(`Lost Out`, na.rm = TRUE),
+            lost.in.play = sum(`Lost In Play`, na.rm = TRUE)) %>%
+  arrange(desc(tackles.attempted))
