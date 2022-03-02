@@ -182,18 +182,26 @@ passing_analysis_game1 %>% filter(progressive.pass != 0) %>%
 
 ## progressive passing map, colour = category of pass --------------------------
 
-eng_croatia_prog_pass_map <- create_Pitch(middlethird = TRUE) + 
-  geom_segment(data = passing_analysis_game1 %>% filter(progressive.pass == "1") %>% filter(player.name != "Kieran Trippier"), 
+eng_croatia_prog_pass_map <- passing_analysis_game1 %>%
+  filter(progressive.pass == 1) %>% 
+  filter(player.name == "Kieran Trippier") %>% 
+  ggplot() +
+  annotate_pitch(colour = "white",
+                 fill   = "springgreen4",
+                 dimensions = pitch_statsbomb) +
+  geom_segment(size = .9, aes(x = location.x, y = location.y.inverse, 
+                               xend = pass.end_location.x, yend = pass.end_location.y.inverse, linetype = "solid"),
+               col = "Red", alpha = 1, show.legend = F, arrow = NULL, 
+               lineend = "round") +
+  geom_point(aes(x = pass.end_location.x, y = pass.end_location.y.inverse), size = 3.5, col = 'Red') +
+  geom_segment(data = passing_analysis_game1 %>% filter(progressive.pass == 1) %>% filter(player.name != "Kieran Trippier"), 
                size = 1, aes(x = location.x, y = location.y.inverse, xend = pass.end_location.x, yend = pass.end_location.y.inverse ),
-               col = "#3F95F7", alpha = 1, show.legend = F, arrow = arrow(length = unit(0.5, "cm"))) +
-  geom_segment(data = passing_analysis_game1 %>% filter(progressive.pass == "1") %>% filter(player.name == "Kieran Trippier"), 
-               size = 1, aes(x = location.x, y = location.y.inverse, xend = pass.end_location.x, yend = pass.end_location.y.inverse ),
-               col = "Red", alpha = 1, show.legend = F, arrow = arrow(length = unit(0.5, "cm"))) + 
-  labs(title = "England's progressive passes (52) primarily came from left flank, either advancing the ball up the pitch, or coming inside.",
-       subtitle = "Trippier (red) was England's most progressive passer (12)") +
-  theme(plot.title.position = "plot",
-        plot.title = element_textbox_simple(padding = margin(7.5, 77.5, -30, 50.5)),
-        plot.subtitle = element_text(hjust = 0.14, vjust = -15))
-# make improvements to the above  
-
-
+               col = "#3F95F7", alpha = 1, show.legend = F, arrow = NULL) +
+  geom_point(data = passing_analysis_game1 %>% filter(progressive.pass == 1) %>% filter(player.name != "Kieran Trippier"),
+             aes(x = pass.end_location.x, y = pass.end_location.y.inverse), size = 3.5, col = '#3F95F7') +
+  theme_pitch() +
+  theme(panel.background = element_rect(fill = "springgreen4")) +
+  labs(title = "England's progressive passes (52) primarily came from left flank, either advancing the ball \nup the pitch, or coming inside.",
+       subtitle = "Trippier (red) was England's most progressive passer (12) advancing the ball on average 22m up the pitch") 
+  
+  
