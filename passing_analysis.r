@@ -40,8 +40,6 @@ euros_matches <- euros_matches %>%
 england_euros_matches <- euros_matches %>% filter(england_match == 1)
 
 
-
-
 ## England Vs. Croatia ------------------------------------
 
 england_croatia_match <- england_euros_matches %>% filter(match_week == 1)
@@ -81,17 +79,20 @@ pass_pc <- passes[passes$pass.outcome.name == "Complete",]$n / pass_n * 100
 ## England passing network vs. Croatia -----------------------------------------
 # Only includes passes until first substitution was made
 
-engl_croatia_pass_network <- create_Pitch(middlethird = TRUE) + 
-#soccerPitch(lengthPitch = 120, widthPitch = 80, theme = 'grass') + 
+engl_croatia_pass_network <- ggplot() +
+  annotate_pitch(colour = "white",
+                 fill   = "springgreen4",
+                 dimensions = pitch_statsbomb) +
   geom_segment(data = eng_edges_match1, aes(x, y, xend = xend, yend = yend, size = n/2 ),
                col = "#3F95F7", alpha = 0.9, show.legend = F) +
   geom_point(data = eng_nodes_match1, aes(x, y, size = events, color = "red", fill = events), pch = 21, show.legend = F) + 
   scale_fill_distiller(palette = "Reds", direction = 1) +
   scale_size_identity() + 
   guides(size = "none") +
-  theme_classic() + 
+  theme_pitch() + 
   ggtitle("England vs Croatia, 13-06-2021 Euro 2020") + 
-  theme(axis.title.x=element_blank(),
+  theme(panel.background = element_rect(fill = "springgreen4"),
+        axis.title.x=element_blank(),
         axis.text.x=element_blank(),
         axis.ticks.x=element_blank(),
         axis.title.y=element_blank(),
@@ -99,7 +100,7 @@ engl_croatia_pass_network <- create_Pitch(middlethird = TRUE) +
         axis.ticks.y=element_blank(),
         axis.line.x = element_blank(),
         axis.line.y = element_blank(),
-        plot.title = element_text(hjust = 0.15, vjust = -10)) +
+        plot.title = element_text(hjust = 0.15, vjust = -10, colour = 'white')) +
   coord_cartesian(clip = "on") + 
   annotate("text", 104, 1, label = paste0("Passes: ", pass_n, "\nCompleted: ", sprintf("%.1f", pass_pc), "%"), 
            hjust = 1, vjust = 0, size = 4 * 7/8, col = "black") + 
@@ -161,23 +162,30 @@ passing_analysis_game1 <- progressive_pass_assess(passing_analysis_game1)
 
 ## England passing map ---------------------------------------------------------
 
-eng_passes_vs_croatia <- create_Pitch(middlethird = TRUE) +
+eng_passes_vs_croatia <-  ggplot() +
+  annotate_pitch(colour = "white",
+                 fill   = "springgreen4",
+                 dimensions = pitch_statsbomb) +
   geom_point(data = passing_analysis_game1, aes(x = location.x, y = location.y.inverse), 
-             color = "red", alpha = 0.5, size = 6) +
+             color = "red", alpha = 0.4, size = 6) +
+  theme_pitch() +
+  theme(panel.background = element_rect(fill = "springgreen4")) +
   labs(subtitle = "A clear focus on the left side of the pitch, but also noticeably fewer passes around the central part of the 18 yard area.",
-       title = "All England passes vs. Croatia, by location of where pass made") + 
-  theme(plot.title.position = "plot",
-        plot.title = element_textbox_simple(padding = margin(7.5, 77.5, -20, 50.5)),
-        plot.subtitle = element_text(hjust = 0.65, vjust = -10))
+       title = "All England passes vs. Croatia, by location of where pass made")
 
 
 ## Progressive passes by player ------------------------------------------------
 
-passing_analysis_game1 %>% filter(progressive.pass != 0) %>%
+passing_analysis_game1 <- passing_analysis_game1 %>% 
+  mutate(progressive.pass = if_else(progressive.pass.category %in% c("category.1","category.2","category.3"), 1, 0))
+
+passing_analysis_game1 %>% filter(progressive.pass == 1) %>%
   mutate(pass_n = 1) %>% 
   pivot_wider(names_from = progressive.pass.category, values_from = pass_n) %>% 
   group_by(player.name) %>% 
-  summarise(progressive.passes = sum(progressive.pass, na.rm = TRUE)) %>% 
+  summarise(progressive.passes = sum(category.1, na.rm = TRUE) 
+            + sum(category.2, na.rm = TRUE)
+            + sum(category.3, na.rm = TRUE)) %>% 
   arrange(desc(progressive.passes))
 
 ## progressive passing map, colour = category of pass --------------------------
@@ -201,10 +209,10 @@ eng_croatia_prog_pass_map <- passing_analysis_game1 %>%
              aes(x = pass.end_location.x, y = pass.end_location.y.inverse), size = 3.5, col = '#3F95F7') +
   theme_pitch() +
   theme(panel.background = element_rect(fill = "springgreen4")) +
-  labs(title = "England's progressive passes (52) primarily came from left flank, either advancing the ball \nup the pitch, or coming inside.",
-       subtitle = "Trippier (red) was England's most progressive passer (12) advancing the ball on average 22m up the pitch") 
+  labs(title = "England's progressive passes (51) primarily came from left flank, either advancing the ball \nup the pitch, or coming inside.",
+       subtitle = "Trippier (red) was England's most progressive passer (15) advancing the ball on average 20m up the pitch") 
   
-## England defensive actions
+## England defensive actions ---------------------------------------------------
 
 england_croatia_def_actions <- england_croatia_match %>% 
   filter(team.name == "England") %>%
@@ -237,3 +245,30 @@ england_duels <- england_croatia_match %>%
             lost.out = sum(`Lost Out`, na.rm = TRUE),
             lost.in.play = sum(`Lost In Play`, na.rm = TRUE)) %>%
   arrange(desc(tackles.attempted))
+
+england_duels <- england_duels %>% mutate(succesful.tackles = tackles.won + success.in.play,
+                         unsuccesful.tackles = tackles.attempted - succesful.tackles) %>% 
+                         select(player.name, succesful.tackles, unsuccesful.tackles)
+
+england_croatia_def_actions <- left_join(england_croatia_def_actions , england_duels, by = 'player.name')
+
+england_croatia_def_actions[is.na(england_croatia_def_actions)] <- 0
+
+england_croatia_def_actions <- england_croatia_def_actions %>%
+                               mutate(defensive.actions = pressure + ball.recovery + interception +
+                               aerial.battle.lost + succesful.tackles + unsuccesful.tackles) %>% 
+                               arrange(desc(defensive.actions)) %>% select(-defensive.actions)
+
+## England pressure map --------------------------------------------------------
+
+england_croatia_match %>% 
+  filter(team.name == "England") %>%
+  filter(type.name %in% c("Pressure","Ball Recovery","Interception")) %>% 
+  ggplot() +
+  annotate_pitch(colour = "white",
+                 fill   = "springgreen4",
+                 dimensions = pitch_statsbomb) +
+  geom_jitter(aes(x = location.x, y = location.y.inverse, colour = type.name),size = 2) +
+  theme_pitch() +
+  theme(panel.background = element_rect(fill = "springgreen4"))
+  
