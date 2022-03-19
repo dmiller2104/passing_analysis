@@ -261,14 +261,28 @@ england_croatia_def_actions <- england_croatia_def_actions %>%
 
 ## England pressure map --------------------------------------------------------
 
-england_croatia_match %>% 
+eng_cro_pressures <- sum(england_croatia_def_actions$pressure, na.rm = TRUE)
+eng_cro_recoveries <- sum(england_croatia_def_actions$ball.recovery, na.rm = TRUE)
+eng_cro_interceptions <- sum(england_croatia_def_actions$interception, na.rm = TRUE)
+
+eng_croatia_def_act_map <- england_croatia_match %>% 
   filter(team.name == "England") %>%
-  filter(type.name %in% c("Pressure","Ball Recovery","Interception")) %>% 
-  ggplot() +
+  filter(type.name %in% c("Pressure","Ball Recovery","Interception","Duel")) %>% 
+  ggplot(aes(shape = type.name)) +
   annotate_pitch(colour = "white",
                  fill   = "springgreen4",
                  dimensions = pitch_statsbomb) +
-  geom_jitter(aes(x = location.x, y = location.y.inverse, colour = type.name),size = 2) +
+  geom_jitter(aes(x = location.x, y = location.y.inverse, colour = type.name),size = 2.5) +
   theme_pitch() +
-  theme(panel.background = element_rect(fill = "springgreen4"))
+  theme(panel.background = element_rect(fill = "springgreen4")) + 
+  scale_color_manual(name = "Defensive actions", values = c("#3399FF","#9900CC","#FF0033")) + 
+  scale_shape_manual(name = "Defensive actions", values = c(15,16,17)) +
+  labs(title = "Most of the defensive actions took place in the middle third and on the left flank, reflecting where\nEngland largely played the ball.",
+       subtitle = "Three players (Phillips, Mount and Foden) were responsible for almost half of England's ball\npressure attempts.") + 
+  annotate("text", 104, 1, label = paste0("Ball recoveries: ", eng_cro_recoveries), 
+           hjust = 4, vjust = 1.5, size = 4 * 7/8, col = "white") +
+  annotate("text", 104, 1, label = paste0("Interceptions: ", eng_cro_interceptions), 
+           hjust = 2.7, vjust = 1.5, size = 4 * 7/8, col = "white") +
+  annotate("text", 104, 1, label = paste0("Pressure events: ", eng_cro_pressures), 
+           hjust = 1, vjust = 1.5, size = 4 * 7/8, col = "white")
   
